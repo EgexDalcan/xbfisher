@@ -1,0 +1,11 @@
+[package]
+name = "xbfisher-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chrono = "0.4.38"
+serde = {version = "1.0.204", features = ["derive"] }
+socket2 = {version="0.5.7", features = ["all"]}
+systemstat = "0.2.3"
+thiserror = "1.0"
