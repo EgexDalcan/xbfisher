@@ -1,5 +1,5 @@
-use xbfisher_server::commands::start_data_from_list;
+use xbfisher_server::commands::{ping_station_from_ip, start_data_from_list};
 
 fn main() {
-    start_data_from_list(5);
+    ping_station_from_ip("10.8.0.110".into(), 5);
 }

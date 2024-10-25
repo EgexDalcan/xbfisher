@@ -4,7 +4,7 @@ use rand::random;
 use systemstat::{System, Platform};
 use chrono::{Local, Timelike};
 
-use crate::Error;
+use crate::{math, Error};
 use crate::pinging::ping;
 
 #[derive(serde::Serialize)]
@@ -35,10 +35,6 @@ pub struct Station{
 impl Station{
     fn new_no(st_no: u8, ipaddr: &String) -> Self{
         Self { station_no: st_no, ip_address: ipaddr.to_string() }
-    }
-
-    fn new(ipaddr: &String) -> Self{
-        Self {ip_address: ipaddr.to_string(), station_no: 99 }
     }
 
     pub fn connect_station(stat_no: u8) -> Self{
@@ -152,17 +148,17 @@ impl Station{
         let date: chrono::DateTime<Local> = chrono::offset::Local::now();
         let latency = ping::vec_mean(&self.ping_this_station_silent(5)).to_string();
         DataRow{
-            time: format!("{}:{}", date.hour(), date.minute()),
             no: self.station_no.to_string(),
             ping_latency: latency,
             cpu_temperature: match self.get_current_temperature(){
-                Ok(a) => a.to_string(),
+                Ok(a) => math::n_decimals(a, 4).to_string(),
                 Err(error) => format!("Error: {}", error).to_string()
             },
             cpu_load: match self.get_current_cpu_load(){
-                Ok(a) => format!("{}%", a),
+                Ok(a) => format!("{}%", math::n_decimals(a, 4)),
                 Err(error) => format!("Error: {}", error).to_string()
             },
+            time: format!("{}:{}", date.hour(), date.minute()),
         }
     }
 }

@@ -127,8 +127,8 @@ pub fn ping_station(station: &Station, ping_count: u16) -> Vec<f32>{
             Some(&random()),
         ){
             Ok(a) => {
-                latency.push(a.as_micros() as f32 / 1000.0);
-                println!("32 bytes from {addr}: ttl={} time={} ms", ttl, a.as_micros() as f32 /1000.0);
+                latency.push(math::n_decimals(a.as_micros() as f32 / 1000.0, 4));
+                println!("32 bytes from {addr}: ttl={} time={} ms", ttl, math::n_decimals(a.as_micros() as f32 /1000.0, 4));
                 success_counter = success_counter + 1;
             },
             Err(error) => {
@@ -142,8 +142,8 @@ pub fn ping_station(station: &Station, ping_count: u16) -> Vec<f32>{
     let viter = latency.iter();
     let avg = vec_mean(&latency);
     let mdev = vec_mdev(&latency);
-    println!("{ping_count} packets transmitted, {success_counter} recieved, {}% packet loss, time {} ms", (fail_counter/ping_count) as f32 *100.0, SystemTime::now().duration_since(time_start).unwrap_or_else(|_|{Duration::from_secs(0)}).as_micros() as f32 / 1000.0);
-    println!("min/avg/max/mdev = {}/{:.*}/{}/{:.*} ms", viter.clone().min_by(|x, y| x.partial_cmp(&y).unwrap()).unwrap_or(&0.0), math::n_decimals(avg, 4), avg, viter.clone().max_by(|x, y| x.partial_cmp(&y).unwrap()).unwrap_or(&0.0), math::n_decimals(mdev, 4), mdev);
+    println!("{ping_count} packets transmitted, {success_counter} recieved, {}% packet loss, time {} ms", math::n_decimals((fail_counter/ping_count) as f32 *100.0, 4), math::n_decimals(SystemTime::now().duration_since(time_start).unwrap_or_else(|_|{Duration::from_secs(0)}).as_micros() as f32 / 1000.0, 4));
+    println!("min/avg/max/mdev = {}/{}/{}/{} ms", math::n_decimals(*viter.clone().min_by(|x, y| x.partial_cmp(&y).unwrap()).unwrap_or(&0.0), 4), math::n_decimals(avg, 4), math::n_decimals(*viter.clone().max_by(|x, y| x.partial_cmp(&y).unwrap()).unwrap_or(&0.0), 4), math::n_decimals(mdev, 4));
     latency
 }
 
@@ -181,7 +181,7 @@ pub fn ping_station_silent(station: &Station, ping_count: u16) -> Vec<f32>{
             Some(&random()),
         ){
             Ok(a) => {
-                latency.push(a.as_micros() as f32 / 1000.0);
+                latency.push(math::n_decimals(a.as_micros() as f32 / 1000.0, 4));
                 success_counter = success_counter + 1;
             },
             Err(_) => {

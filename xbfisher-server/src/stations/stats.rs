@@ -1,7 +1,7 @@
 use socket2::{Domain, Protocol, Socket, Type};
 use std::{io::Read, net::{IpAddr, SocketAddr}, time::{Duration, SystemTime}};
 
-use crate::{pinging::{EchoReply, EchoRequest, IcmpV4, IpV4Packet, ICMP_HEADER_SIZE}, Error};
+use crate::{pinging::{EchoReply, EchoRequest, IcmpV4, IpV4Packet, ICMP_HEADER_SIZE}, Error, math};
 
 const KEY1: &str = "Suiladmellon";
 const KEY2: &str = "suilad";

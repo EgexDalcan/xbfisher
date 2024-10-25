@@ -25,9 +25,9 @@ pub fn start_data_from_ip(ipaddr: String, interval: u64){
 pub fn start_data_from_list(interval: u64){
     let mut svec: Vec<Station> = vec![];
     if let Ok(lines) = filecontrol::read_lines("./hosts.txt".into()) {
-        // Consumes the iterator, returns an (Optional) String
+        // Consumes the iterator, returns n String
         for line in lines.flatten() {
-            let com = Regex::new(r"#").unwrap();
+            let com = Regex::new(r"^[#]").unwrap();
             if !com.is_match(&line) & !line.is_empty() {
                 let linecut: Vec<&str> = line.split(" -").collect();
                 svec.push(Station::connect_station_by_ip(linecut[0].parse().unwrap(), linecut[1].into()));
