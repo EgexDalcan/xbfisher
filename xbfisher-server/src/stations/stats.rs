@@ -1,7 +1,7 @@
 use socket2::{Domain, Protocol, Socket, Type};
 use std::{io::Read, net::{IpAddr, SocketAddr}, time::{Duration, SystemTime}};
 
-use crate::{pinging::{EchoReply, EchoRequest, IcmpV4, IpV4Packet, ICMP_HEADER_SIZE}, Error, math};
+use crate::{pinging::{EchoReply, EchoRequest, IcmpV4, IpV4Packet, ICMP_HEADER_SIZE}, Error};
 
 const KEY1: &str = "Suiladmellon";
 const KEY2: &str = "suilad";
@@ -18,7 +18,7 @@ fn request_data(ipadrr: IpAddr, timeout: Option<Duration>) -> Result<Vec<u8>, Er
 
     let station = SocketAddr::new(ipadrr, 0);
     
-    // write the key
+    // Write the key
     let mut payload: [u8; 24] = [0; 24];
     let key_iter = KEY1.as_bytes().to_vec();
     for i in 0..KEY1.as_bytes().len() {
@@ -52,7 +52,7 @@ fn request_data(ipadrr: IpAddr, timeout: Option<Duration>) -> Result<Vec<u8>, Er
         println!("Success! FIX ME!!!!!!");
     }
 
-    // loop until you get the data back or you reach the timeout
+    // Loop until you get the data back or you reach the timeout
     let mut time_elapsed = Duration::from_secs(0);
     loop {
         println!("Hello!");
@@ -79,7 +79,7 @@ fn request_data(ipadrr: IpAddr, timeout: Option<Duration>) -> Result<Vec<u8>, Er
             println!("{}", reply.payload[i]);
         }
 
-        // check for key
+        // Check for key
         let key_iter = KEY2.as_bytes().to_vec();
         for i in 0..KEY2.as_bytes().len(){
             println!("Key Check: {} =?= {}", reply.payload[i], key_iter[i]);
@@ -89,13 +89,13 @@ fn request_data(ipadrr: IpAddr, timeout: Option<Duration>) -> Result<Vec<u8>, Er
             };
         };
 
-        // if the key and the identity are correct, return the data
+        // If the key and the identity are correct, return the data
         if reply.ident == request.ident && key {
             println!("Correct package, {key}");
             return Ok(reply.payload.to_vec());
         }
 
-        // if ident is not correct check if timeout is over
+        // If ident is not correct check if timeout is over
         time_elapsed = match SystemTime::now().duration_since(time_start) {
             Ok(reply) => reply,
             Err(_) => return Err(Error::InternalError.into()),

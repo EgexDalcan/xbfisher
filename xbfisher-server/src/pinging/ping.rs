@@ -1,12 +1,11 @@
 use std::io::Read;
 use std::net::{IpAddr, SocketAddr};
-use std::ops::Div;
 use std::time::{Duration,SystemTime};
 
 use rand::random;
 use socket2::{Domain, Protocol, Socket, Type};
 
-use crate::errors::Error;
+use crate::tools::errors::Error;
 use crate::pinging::{EchoReply, EchoRequest, IcmpV4, IcmpV6, IpV4Packet, ICMP_HEADER_SIZE};
 use crate::stations::station::Station;
 use crate::tools::math;
@@ -15,6 +14,11 @@ const TOKEN_SIZE: usize = 32;
 const ECHO_REQUEST_BUFFER_SIZE: usize = ICMP_HEADER_SIZE + TOKEN_SIZE;
 type Token = [u8; TOKEN_SIZE];
 
+pub struct PingReturn{
+    time: Duration,
+    seq_cnt: u16,
+}
+
 pub fn ping(
     addr: IpAddr,
     timeout: Option<Duration>,
@@ -22,7 +26,7 @@ pub fn ping(
     ident: Option<u16>,
     seq_cnt: Option<u16>,
     payload: Option<&Token>,
-) -> Result<Duration, Error> {
+) -> Result<PingReturn, Error> {
     let time_start = SystemTime::now();
 
     let timeout = match timeout {
@@ -63,12 +67,13 @@ pub fn ping(
 
     socket.send_to(&mut buffer, &dest.into())?;
 
-    // loop until either an echo with correct ident was received or timeout is over
+    // Loop until either an echo with correct ident was received or timeout is over
     let mut time_elapsed = Duration::from_secs(0);
     loop {
         socket.set_read_timeout(Some(timeout - time_elapsed))?;
 
         let mut buffer: [u8; 2048] = [0; 2048];
+        let mut seq_cnt_r = 0;
         socket.read(&mut buffer)?;
 
         let reply = if dest.is_ipv4() {
@@ -77,7 +82,7 @@ pub fn ping(
                 Err(_) => return Err(Error::DecodeV4Error.into()),
             };
             match EchoReply::decode::<IcmpV4>(ipv4_packet.data) {
-                Ok(reply) => reply,
+                Ok(reply) => {seq_cnt_r = reply.seq_cnt; reply},
                 Err(_) => continue,
             }
         } else {
@@ -92,11 +97,11 @@ pub fn ping(
                 Ok(reply) => reply,
                 Err(_) => return Err(Error::InternalError.into()),
             };
-            // received correct ident
-            return Ok(time_elapsed);
+            // Received correct ident
+            return Ok(PingReturn{time: time_elapsed, seq_cnt: seq_cnt_r});
         }
 
-        // if ident is not correct check if timeout is over
+        // If ident is not correct check if timeout is over
         time_elapsed = match SystemTime::now().duration_since(time_start) {
             Ok(reply) => reply,
             Err(_) => return Err(Error::InternalError.into()),
@@ -112,6 +117,7 @@ pub fn ping_station(station: &Station, ping_count: u16) -> Vec<f32>{
     let time_start = SystemTime::now();
     let addr = station.get_ip_address().parse().expect("If we are able to create a Station type, the IPAdress must be correct.");
     let timeout = Duration::from_secs(2);
+    let mut seq_cnt= 1;
     let mut success_counter: u16 = 0;
     let mut fail_counter: u16 = 0;
     let mut latency: Vec<f32> = Vec::new();
@@ -123,16 +129,19 @@ pub fn ping_station(station: &Station, ping_count: u16) -> Vec<f32>{
             Some(timeout),
             Some(ttl),
             Some(3),
-            Some(5),
+            Some(seq_cnt),
             Some(&random()),
         ){
             Ok(a) => {
-                latency.push(math::n_decimals(a.as_micros() as f32 / 1000.0, 4));
-                println!("32 bytes from {addr}: ttl={} time={} ms", ttl, math::n_decimals(a.as_micros() as f32 /1000.0, 4));
+                latency.push(math::n_decimals(a.time.as_micros() as f32 / 1000.0, 4));
+                seq_cnt = a.seq_cnt;
+                println!("32 bytes from {addr}: icmp_seq={} ttl={} time={} ms",seq_cnt, ttl, math::n_decimals(a.time.as_micros() as f32 /1000.0, 4));
+                seq_cnt = seq_cnt+1;
                 success_counter = success_counter + 1;
             },
             Err(error) => {
-                println!("Problem during pinging Station {}. Error: {error}",station.get_station_no());
+                println!("Problem during pinging {}. icmp_seq={} Error: {error}",station.get_ip_address(), seq_cnt);
+                seq_cnt = seq_cnt + 1;
                 fail_counter = fail_counter + 1;
                 continue;
             },
@@ -140,31 +149,15 @@ pub fn ping_station(station: &Station, ping_count: u16) -> Vec<f32>{
         std::thread::sleep(Duration::from_secs(interval));
     }
     let viter = latency.iter();
-    let avg = vec_mean(&latency);
-    let mdev = vec_mdev(&latency);
+    let avg = math::vec_mean(&latency);
+    let mdev = math::vec_mdev(&latency);
     println!("{ping_count} packets transmitted, {success_counter} recieved, {}% packet loss, time {} ms", math::n_decimals((fail_counter/ping_count) as f32 *100.0, 4), math::n_decimals(SystemTime::now().duration_since(time_start).unwrap_or_else(|_|{Duration::from_secs(0)}).as_micros() as f32 / 1000.0, 4));
     println!("min/avg/max/mdev = {}/{}/{}/{} ms", math::n_decimals(*viter.clone().min_by(|x, y| x.partial_cmp(&y).unwrap()).unwrap_or(&0.0), 4), math::n_decimals(avg, 4), math::n_decimals(*viter.clone().max_by(|x, y| x.partial_cmp(&y).unwrap()).unwrap_or(&0.0), 4), math::n_decimals(mdev, 4));
     latency
 }
 
-/// Calculates the mean of the input vector.
-pub fn vec_mean(v: &Vec<f32>) -> f32{
-    let viter = v.iter();
-    viter.clone().sum::<f32>() as f32 / viter.clone().len() as f32
-}
-
-/// Calculates the standard deviation of the input vector.
-pub fn vec_mdev(v: &Vec<f32>) -> f32{
-    let avg = vec_mean(v);
-    let mut sum= 0.0;
-    for i in v{
-        sum = sum + (i - avg).powi(2);
-    };
-    sum.div(v.len() as f32).sqrt()
-}
-
 pub fn ping_station_silent(station: &Station, ping_count: u16) -> Vec<f32>{
-    let addr = station.get_ip_address().parse().expect("If we are able to create a Station type, the IPAdress must be correct.");
+    let addr = station.get_ip_address().parse().expect("If we are able to create a Station type, the IP Adress must be correct.");
     let timeout = Duration::from_secs(2);
     let mut success_counter: u16 = 0;
     let mut fail_counter: u16 = 0;
@@ -181,7 +174,7 @@ pub fn ping_station_silent(station: &Station, ping_count: u16) -> Vec<f32>{
             Some(&random()),
         ){
             Ok(a) => {
-                latency.push(math::n_decimals(a.as_micros() as f32 / 1000.0, 4));
+                latency.push(a.time.as_micros() as f32 / 1000.0);
                 success_counter = success_counter + 1;
             },
             Err(_) => {
@@ -193,4 +186,3 @@ pub fn ping_station_silent(station: &Station, ping_count: u16) -> Vec<f32>{
     }
     latency
 }
-

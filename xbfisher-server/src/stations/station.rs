@@ -69,8 +69,8 @@ impl Station{
         station
     }
 
-    pub fn connect_station_by_ip(st_no: u8, ipaddr: String) -> Self{
-        let station = Self::new_no(st_no, &ipaddr);
+    pub fn connect_station_by_ip(st_no: u8, ipaddr: &String) -> Self{
+        let station = Self::new_no(st_no, ipaddr);
         let timeout = Duration::from_secs(2);
         match ping::ping(
             ipaddr.parse().unwrap_or_else(|error|{
@@ -146,7 +146,7 @@ impl Station{
     /// Gathers data from the station and returns it as DataRow
     pub fn gather_data_set(&self) -> DataRow{
         let date: chrono::DateTime<Local> = chrono::offset::Local::now();
-        let latency = ping::vec_mean(&self.ping_this_station_silent(5)).to_string();
+        let latency = math::n_decimals(math::vec_mean(&self.ping_this_station_silent(5)), 4).to_string();
         DataRow{
             no: self.station_no.to_string(),
             ping_latency: latency,
