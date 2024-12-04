@@ -1,7 +1,0 @@
-# To configure the station list use the following pattern:
-# StationNo -StationIP
-# Example:
-# 1 -10.8.0.101
-
-1 -10.8.0.101
-2 -10.8.0.110

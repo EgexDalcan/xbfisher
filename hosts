@@ -1,0 +1,7 @@
+# To configure the station list use the following pattern:
+# StationNo -UserName -StationIP
+# Example:
+# 1 -frodo_central -10.8.0.101
+
+1 -frodo_central -10.8.0.101
+2 -central -10.8.0.110
