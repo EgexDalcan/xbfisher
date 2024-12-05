@@ -5,7 +5,7 @@ use xbfisher::commands::{start_data_from_ip, start_data_from_list};
 fn main() {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 || &args[1] == &"-h".to_owned(){
-        println!("XBFisher 0.1\nUsage: xbfisher [job] [options] <destination/parameters>
+        println!("XBFisher 1.0\nUsage: xbfisher [job] [options] <destination/parameters>
 log:\n Can log the data from specified stations in the log file or in the parameters.
     -s: starts data logging from a specified ip address. Usage:\n    xbfisher log -s <user name> <ip_address> <interval>
     -l: starts logging from the hosts file into a csv document. Usage:\n    xbfisher log -l <interval>");
