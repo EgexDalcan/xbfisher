@@ -65,16 +65,6 @@ pub fn get_current_data_from_ip(usrname: &String, ipaddr: &String){
     println!("{}", data_row);
 }
 
-pub fn get_station_network_interface(stat_no: u8){
-    let station = Station::connect_station(stat_no);
-    station.get_network_interfaces();
-}
-
-pub fn get_station_network_interface_from_ip(usrname: &String, ipaddr: &String){
-    let station = Station::connect_station_by_ip(99, usrname, ipaddr);
-    station.get_network_interfaces();
-}
-
 pub fn ping_station(stat_no: u8, count: u16){
     let station = Station::connect_station(stat_no);
     station.ping_this_station(count);
