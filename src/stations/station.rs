@@ -5,7 +5,7 @@ use rand::random;
 use chrono::{Local, Timelike};
 
 use crate::{math, Error};
-use crate::pinging::ping;
+use crate::network::ping;
 
 #[derive(serde::Serialize)]
 pub struct DataRow{

@@ -6,7 +6,7 @@ use rand::random;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::tools::errors::Error;
-use crate::pinging::{EchoReply, EchoRequest, IcmpV4, IcmpV6, IpV4Packet, ICMP_HEADER_SIZE};
+use crate::network::{EchoReply, EchoRequest, IcmpV4, IcmpV6, IpV4Packet, ICMP_HEADER_SIZE};
 use crate::stations::station::Station;
 use crate::tools::math;
 
