@@ -1,9 +1,10 @@
-use std::env;
-
-use xbfisher::commands::{start_data_from_ip, start_data_from_list};
+use xbfisher::{commands::{start_data_from_ip, start_data_from_list}, send_command, station::Station, CommandKind};
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let station = Station::connect_station_by_ip(1, &"ege".to_owned(), &"127.0.0.1".to_owned());
+    send_command(station, CommandKind::ReqDiag);
+
+    /* let args: Vec<String> = env::args().collect();
     if args.len() < 2 || &args[1] == &"-h".to_owned(){
         println!("XBFisher 1.0\nUsage: xbfisher [job] [options] <destination/parameters>
 log:\n Can log the data from specified stations in the log file or in the parameters.
@@ -17,5 +18,5 @@ log:\n Can log the data from specified stations in the log file or in the parame
         }
     } else {
         println!("Unknown Command. See the output of 'xbfisher -h' for a summary of options.");
-    }
+    } */
 }

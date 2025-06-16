@@ -67,7 +67,7 @@ impl Station{
         };
         station
     }
-
+    /// TODO: Make this and similar functions return a Result<Station, Error>. If its an Error, do not add to the Station list.
     pub fn connect_station_by_ip(st_no: u8, username: &String, ipaddr: &String) -> Self{
         let station = Self::new_no(st_no, username, ipaddr);
         let timeout = Duration::from_secs(2);
