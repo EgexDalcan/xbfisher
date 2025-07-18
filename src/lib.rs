@@ -8,4 +8,4 @@ pub use crate::tools::errors;
 pub use crate::stations::station;
 pub use crate::stations::commands;
 pub use crate::tools::math;
-pub use crate::network::tcpclient::{send_command, CommandKind};
+pub use crate::network::tcpclient::{req_comms, CommandKind};

@@ -25,10 +25,25 @@ impl fmt::Display for DataRow{
     }
 }
 
-pub struct Station{
+pub struct Station {
     pub station_no: u8,
+    //pub data: StationData,
     pub ip_address: String,
     pub usr_name: String,
+}
+
+struct StationData {
+    date: String,
+    uptime: u64,
+    network_data: Vec<String>,
+    socket_stats: String,
+    memory: String,
+    memory_details: String,
+    swap: String,
+    swap_details: String,
+    cpu_load: String,
+    load_avg: String,
+    cpu_temp: u64,
 }
 
 impl Station{

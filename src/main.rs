@@ -1,8 +1,11 @@
-use xbfisher::{commands::{start_data_from_ip, start_data_from_list}, send_command, station::Station, CommandKind};
+use xbfisher::{commands::{start_data_from_ip, start_data_from_list}, req_comms, station::Station, CommandKind};
 
 fn main() {
     let station = Station::connect_station_by_ip(1, &"ege".to_owned(), &"127.0.0.1".to_owned());
-    send_command(station, CommandKind::ReqDiag);
+    let a = req_comms(station, CommandKind::ReqDiag).unwrap();
+    for data in a {
+        println!("{:?}", data);
+    }
 
     /* let args: Vec<String> = env::args().collect();
     if args.len() < 2 || &args[1] == &"-h".to_owned(){

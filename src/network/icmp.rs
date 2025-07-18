@@ -1,15 +1,8 @@
 use std::io::Write;
-use thiserror::Error;
+
+use crate::Error;
 
 pub const HEADER_SIZE: usize = 8;
-
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("invalid size")]
-    InvalidSize,
-    #[error("invalid packet")]
-    InvalidPacket,
-}
 
 pub struct IcmpV4;
 pub struct IcmpV6;
@@ -63,7 +56,7 @@ impl<'a> EchoRequest<'a> {
 pub struct EchoReply<'a> {
     pub ident: u16,
     pub seq_cnt: u16,
-    pub payload: &'a [u8],
+    pub _payload: &'a [u8],
 }
 
 impl<'a> EchoReply<'a> {
@@ -81,12 +74,12 @@ impl<'a> EchoReply<'a> {
         let ident = (u16::from(buffer[4]) << 8) + u16::from(buffer[5]);
         let seq_cnt = (u16::from(buffer[6]) << 8) + u16::from(buffer[7]);
 
-        let payload = &buffer[HEADER_SIZE..];
+        let _payload = &buffer[HEADER_SIZE..];
 
         Ok(EchoReply {
             ident,
             seq_cnt,
-            payload,
+            _payload,
         })
     }
 }

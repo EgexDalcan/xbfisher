@@ -1,16 +1,4 @@
-use thiserror::Error;
-
-#[derive(Debug, Error)]
-pub enum Error {
-    #[error("too small header")]
-    TooSmallHeader,
-    #[error("invalid header size")]
-    InvalidHeaderSize,
-    #[error("invalid version")]
-    InvalidVersion,
-    #[error("unknown protocol")]
-    UnknownProtocol,
-}
+use crate::Error;
 
 const MINIMUM_PACKET_SIZE: usize = 20;
 
@@ -29,7 +17,7 @@ impl IpV4Protocol {
 }
 
 pub struct IpV4Packet<'a> {
-    pub protocol: IpV4Protocol,
+    pub _protocol: IpV4Protocol,
     pub data: &'a [u8],
 }
 
@@ -56,7 +44,7 @@ impl<'a> IpV4Packet<'a> {
         };
 
         Ok(Self {
-            protocol: protocol,
+            _protocol: protocol,
             data: &data[header_size..],
         })
     }
