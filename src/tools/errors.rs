@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("parsing error")]
+    ParsingError,
     #[error("invalid tcp return message")]
     InvalidTCPReturn,
     #[error("invalid tcp communication")]

@@ -14,7 +14,7 @@ pub enum CommandKind {
     ReqData,   
 }
 
-pub fn req_comms(station: Station, command: CommandKind) -> Result<Vec<String>, Error>{
+pub fn req_comms(station: &Station, command: CommandKind) -> Result<Vec<String>, Error>{
     let mut stream = TcpStream::connect(format!("{}:{}", station.get_ip_address(), PORT)).unwrap();
     match command {
         // Requests Diagnosis Data from the station.
@@ -30,6 +30,7 @@ pub fn req_comms(station: Station, command: CommandKind) -> Result<Vec<String>, 
             let response = String::from_utf8(response.to_vec());
             match response {
                 Ok(diagdata) => {
+                    // Some initial parsing...
                     let mut diagdata = diagdata.trim().to_string();
                     if !diagdata.starts_with("StartDiag") && !diagdata.ends_with("ENDALL") {
                         return Err(Error::InvalidTCPReturn)

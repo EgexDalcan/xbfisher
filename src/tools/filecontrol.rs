@@ -26,8 +26,8 @@ pub fn read_lines(filename: String) -> io::Result<io::Lines<io::BufReader<File>>
     Ok(io::BufReader::new(file).lines())
 }
 
-/// Parses DataRow vector elements of which gathered by gather_data_set() and then writes it on a .csv file.
-pub fn write_data(datavec: Vec<station::DataRow>){
+// Parses DataRow vector elements of which gathered by gather_data_set() and then writes it on a .csv file.
+/*pub fn write_data(datavec: Vec<station::DataRow>){
     let mut header: bool = false;
         let date: chrono::DateTime<Local> = chrono::offset::Local::now();
         fs::create_dir("./data").unwrap_or_else(|error| {if error.kind() == ErrorKind::AlreadyExists{} else {panic!("Error while creating data directory. Error: {error}")}});
@@ -57,4 +57,4 @@ pub fn write_data(datavec: Vec<station::DataRow>){
             .has_headers(header)
             .from_writer(file);
         wtr.serialize(datavec).unwrap();
-}
+}*/
