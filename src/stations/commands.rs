@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use regex::Regex;
 
+use crate::database::{get_stations, push_data_to_db};
 use crate::station::Station;
 use crate::station;
 use crate::tools::filecontrol;
@@ -28,30 +29,29 @@ pub fn parse_config(args: &[String]) -> (&str, &str, &str){
     }
 }*/
 
-/// Parses the "./hosts.txt" file and writes the gathered data from the stations named in "./hosts.txt" into a .csv file named after the date.
-/// If no "./hosts.txt" exists, creates the file and panics.
-/// interval: u64: designates the interval between different data retrievals in seconds.
-/*pub fn start_data_from_list(interval: &String){
+/// TODO: Used for testing for now, fix it to be used generally. Ignore interval parameter for now, we only take data once.
+/// Gets the list of stations from the database and puts them in a Vec to start data acquisition.
+/// interval: u64 = designates the interval between different data retrievals in seconds.
+pub fn start_data_from_db_list(interval: &String) {
     let mut svec: Vec<Station> = vec![];
-    if let Ok(lines) = filecontrol::read_lines("./hosts".into()) {
-        // Consumes the iterator, returns a String
-        for line in lines.flatten() {
-            let com = Regex::new(r"^[#]").unwrap();
-            if !line.is_empty() && !com.is_match(&line){
-                let linecut: Vec<&str> = line.split(" -").collect();
-                svec.push(Station::connect_station_by_ip(linecut[0].parse().unwrap(), &linecut[1].into(), &linecut[2].into()));
-            };
-        }
-        loop {
-            let mut datavec: Vec<station::DataRow> = vec![];
-            for i in &svec{
-                datavec.push(i.gather_diag_data_set());
+    match get_stations() {
+        Ok(lines) => {
+            // Consumes the iterator, returns a String
+            println!("{:?}", lines);
+            for line in lines.iter() {
+                if !line.is_empty() {
+                    let linecut: Vec<&str> = line.split(" -").collect();
+                    svec.push(Station::connect_station_by_ip(linecut[0].parse().expect("The database takes Integer for this column."), &linecut[1].into(), &linecut[2].into()));
+                };
             }
-            filecontrol::write_data(datavec);
-            std::thread::sleep(Duration::from_secs(interval.parse().unwrap()));
+            for i in &mut svec {
+                let _ = push_data_to_db(i.gather_diag_data_set());
+            }
         }
+        Err( error) => eprintln!("Error while starting diagnostics data acquisition: {error}")
+        
     }
-}*/
+}
 
 /*pub fn get_current_data_from_no(stat_no: u8){
     let mut station = Station::connect_station(stat_no);

@@ -14,7 +14,8 @@ pub enum CommandKind {
     ReqData,   
 }
 
-pub fn req_comms(station: &Station, command: CommandKind) -> Result<Vec<String>, Error>{
+// TODO: Error handling for when TcpStream::connect fails.
+pub fn req_comms(station: &Station, command: CommandKind) -> Result<Vec<String>, Error> {
     let mut stream = TcpStream::connect(format!("{}:{}", station.get_ip_address(), PORT)).unwrap();
     match command {
         // Requests Diagnosis Data from the station.
@@ -25,19 +26,20 @@ pub fn req_comms(station: &Station, command: CommandKind) -> Result<Vec<String>,
             let _ = stream.write(cmd);
 
             // Reads the response from the station:
-            let response: &mut [u8; 8192] = &mut [0; 8192];
-            let _ = stream.read(response);
+            let response: &mut Vec<u8> = &mut Vec::new();
+            let _ = stream.read_to_end(response);
             let response = String::from_utf8(response.to_vec());
             match response {
                 Ok(diagdata) => {
                     // Some initial parsing...
-                    let mut diagdata = diagdata.trim().to_string();
-                    if !diagdata.starts_with("StartDiag") && !diagdata.ends_with("ENDALL") {
+                    let mut diagdata = diagdata.trim().trim_matches(char::from(0)).trim().to_string();
+                    println!("NEW DATA:\n{:?}", diagdata);
+                    if !diagdata.starts_with("StartDiag") || !diagdata.ends_with("ENDAll") {
                         return Err(Error::InvalidTCPReturn)
                     }
                     diagdata = diagdata.replace("StartDiag", "");
                     diagdata = diagdata.replace("ENDAll", "");
-                    return Ok(diagdata.split("End").filter(|x| !x.contains("\0\0\0")).map(|x| x.trim().to_string()).collect());
+                    return Ok(diagdata.trim().split("End").map(|x| x.trim().to_string()).collect::<Vec<String>>());
                 },
                 Err(_) => return Err(Error::InvalidTCPCommunication),
             }

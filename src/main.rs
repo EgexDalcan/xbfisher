@@ -1,13 +1,9 @@
-use xbfisher::{database::start_database, parsing::parse_diag_data, req_comms, station::Station, CommandKind};
+use xbfisher::{commands::start_data_from_db_list, database::{add_station_to_db, start_database}, parsing::parse_diag_data, req_comms, station::Station, CommandKind};
 
 fn main() {
     let _ = start_database();
-    let station = Station::connect_station_by_ip(1, &"Test".into(), &"127.0.0.1".to_owned());
-    let a = req_comms(&station, CommandKind::ReqDiag).unwrap();
-    for data in &a {
-        println!("{:?}", data);
-    }
-    let _ = parse_diag_data(&station, &a);
+    add_station_to_db(&"2".to_string(), &"boromir".to_string(), &"10.8.0.110".to_string());
+    start_data_from_db_list(&0.to_string());
 
     /* let args: Vec<String> = env::args().collect();
     if args.len() < 2 || &args[1] == &"-h".to_owned(){

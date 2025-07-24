@@ -1,7 +1,9 @@
+use std::fmt::Display;
 use std::time::Duration;
 use rand::random;
 
-use crate::{math, req_comms, CommandKind};
+use crate::parsing::parse_diag_data;
+use crate::{math, req_comms, CommandKind, Error};
 use crate::network::ping;
 
 pub struct Station {
@@ -47,8 +49,9 @@ impl Station{
         };
         station
     }
+
     /// TODO: Make this and similar functions return a Result<Station, Error>. If its an Error, do not add to the Station list.
-    pub fn connect_station_by_ip(st_no: u8, st_name: &String, ipaddr: &String) -> Self{
+    pub fn connect_station_by_ip(st_no: u8, st_name: &String, ipaddr: &String) -> Self {
         let station = Self::new_no(st_no, &st_name, ipaddr);
         let timeout = Duration::from_secs(2);
         match ping::ping(
@@ -88,20 +91,29 @@ impl Station{
     }
 
     /// Gathers data from the station as StationData, pushes the data into the database and updates the struct.
-    pub fn gather_diag_data_set(&mut self) {
+    pub fn gather_diag_data_set(&mut self) -> &StationData{
         // Get the station data and assign its number, name, and latency.
         let latency = math::n_decimals(math::vec_mean(&self.ping_this_station_silent(5)), 4).to_string();
-        let mut station_data = match req_comms(self, CommandKind::ReqDiag) {
-            Ok(data) => StationData::new(&data),
-            Err(_) => StationData::new_error(),
+
+        let station_data = match req_comms(self, CommandKind::ReqDiag) {
+            Ok(data) => parse_diag_data(&data),
+            Err(err) => {eprintln!("Error while requesting diagnostics data: {err}"); Ok(StationData::new_error())},
         };
-        station_data.no = self.station_no.to_string();
-        station_data.name = self.name.clone();
-        station_data.latency = latency;
 
-        // Push to the database and update self.
-        self.diag_data = station_data;
+        let mut sdata = if let Err(error) = station_data {
+            eprintln!("Error while parsing diagnostics data: {error}");
+            StationData::new_error()
+        } else {
+            station_data.unwrap()
+        };
 
+        sdata.no = self.station_no.to_string();
+        sdata.name = self.name.clone();
+        sdata.latency = latency;
+
+        // Return StationData and update self.
+        self.diag_data = sdata;
+        &self.diag_data
     }
 }
 
@@ -184,5 +196,11 @@ impl StationData {
             load_avg: "Empty".to_string(),
             cpu_temp: "Empty".to_string(),
         }
+    }
+
+    pub fn output_data(&self) -> (String, String, String, String, String, String, String, String, String, String, String, String, String, String) {
+        (self.no.clone(), self.name.clone(), self.date.clone(), self.uptime.clone(), self.network_data.clone(),
+        self.latency.clone(), self.socket_stats.clone(), self.memory.clone(), self.memory_details.clone(),
+        self.swap.clone(), self.swap_details.clone(), self.cpu_load.clone(), self.load_avg.clone(), self.cpu_temp.clone())
     }
 }
