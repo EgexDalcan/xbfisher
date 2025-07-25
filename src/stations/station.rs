@@ -1,4 +1,3 @@
-use std::fmt::Display;
 use std::time::Duration;
 use rand::random;
 
@@ -14,11 +13,11 @@ pub struct Station {
 }
 
 impl Station{
-    fn new_no(st_no: u8, st_name: &String, ipaddr: &String) -> Self{
+    fn new_no(st_no: u8, st_name: &String, ipaddr: &String) -> Self {
         Self { station_no: st_no, name: st_name.to_string(), diag_data: StationData::new_empty(), ip_address: ipaddr.to_string()}
     }
 
-    pub fn connect_station(stat_no: u8) -> Self{
+    pub fn connect_station(stat_no: u8) -> Result<Self, Error> {
         let station = match stat_no{
             0 => Self::new_no(0, &"Frodo".to_string(), &"10.8.0.101".to_string()),
             1 => Self::new_no(1, &"Aragorn".to_string(), &"10.10.1.2".to_string()),
@@ -30,7 +29,7 @@ impl Station{
             _ => panic!("An invalid station no!")
         };
         let timeout = Duration::from_secs(2);
-        match ping::ping(
+        let connected = match ping::ping(
             station.get_ip_address().parse().unwrap_or_else(|error|{
                 panic!("Error reading this address: \"{}\". check if its correct. Error: {error}", station.get_ip_address());
             }),
@@ -41,20 +40,23 @@ impl Station{
             Some(&random()),
         ){
             Ok(_a) => {
-                println!("Station found, initiating connection.");
+                true
             },
             Err(error) => {
-                println!("Problem during pinging Station {}. Station might be offline, or has a different address, otherwise you do not have connection. Error: {error}.", station.get_ip_address());
+                eprintln!("Problem during pinging Station {}. Station might be offline, or has a different address, otherwise you do not have connection. Error: {error}.", station.get_ip_address());
+                false
             },
         };
-        station
+        if connected {
+            return Ok(station);
+        }
+        Err(Error::InvalidIPAdress)
     }
 
-    /// TODO: Make this and similar functions return a Result<Station, Error>. If its an Error, do not add to the Station list.
-    pub fn connect_station_by_ip(st_no: u8, st_name: &String, ipaddr: &String) -> Self {
+    pub fn connect_station_by_ip(st_no: u8, st_name: &String, ipaddr: &String) -> Result<Self, Error> {
         let station = Self::new_no(st_no, &st_name, ipaddr);
         let timeout = Duration::from_secs(2);
-        match ping::ping(
+        let connected = match ping::ping(
             ipaddr.parse().unwrap_or_else(|error|{
                 panic!("Error reading this address: \"{ipaddr}\". check if its correct. Error: {error}");
             }),
@@ -65,13 +67,17 @@ impl Station{
             Some(&random()),
         ){
             Ok(_a) => {
-                println!("Station {st_no} with ip: {ipaddr} found. Initiating connection.");
+                true
             },
             Err(error) => {
-                println!("Problem during pinging Station {st_no} with ip: {ipaddr}. Station might be offline, or has a different address, otherwise you do not have connection. Error: {error}.");
+                eprintln!("Problem during pinging Station {st_no} with ip: {ipaddr}. Station might be offline, or has a different address, otherwise you do not have connection. Error: {error}.");
+                false
             },
         };
-        station
+        if connected {
+            return Ok(station)
+        }
+        Err(Error::InvalidIPAdress)
     }
 
     pub fn get_ip_address(&self) -> &String {
@@ -108,7 +114,6 @@ impl Station{
         };
 
         sdata.no = self.station_no.to_string();
-        sdata.name = self.name.clone();
         sdata.latency = latency;
 
         // Return StationData and update self.
@@ -119,7 +124,6 @@ impl Station{
 
 pub struct StationData {
     no: String,
-    name: String,
     date: String,
     uptime: String,
     network_data: String,
@@ -144,7 +148,6 @@ impl StationData {
         let swap_details = data_list[5].clone().split("\nDetails: ").map(|x| x.to_string()).collect::<Vec<String>>();
         Self {
             no: "-1".to_string(),
-            name: "Empty".to_string(),
             date: data_list[0].clone(),
             uptime: data_list[1].clone(),
             network_data: data_list[2].clone(),
@@ -163,7 +166,6 @@ impl StationData {
     pub fn new_error() -> StationData {
         return Self {
             no: "-1".to_string(),
-            name: "Error".to_string(),
             date: "Error".to_string(),
             uptime: "Error".to_string(),
             network_data: "Error".to_string(),
@@ -182,7 +184,6 @@ impl StationData {
     pub fn new_empty() -> StationData {
         Self {
             no: "-1".to_string(),
-            name: "Empty".to_string(),
             date: "Empty".to_string(),
             uptime: "Empty".to_string(),
             network_data: "Empty".to_string(),
@@ -198,8 +199,8 @@ impl StationData {
         }
     }
 
-    pub fn output_data(&self) -> (String, String, String, String, String, String, String, String, String, String, String, String, String, String) {
-        (self.no.clone(), self.name.clone(), self.date.clone(), self.uptime.clone(), self.network_data.clone(),
+    pub fn output_data(&self) -> (String, String, String, String, String, String, String, String, String, String, String, String, String) {
+        (self.no.clone(), self.date.clone(), self.uptime.clone(), self.network_data.clone(),
         self.latency.clone(), self.socket_stats.clone(), self.memory.clone(), self.memory_details.clone(),
         self.swap.clone(), self.swap_details.clone(), self.cpu_load.clone(), self.load_avg.clone(), self.cpu_temp.clone())
     }

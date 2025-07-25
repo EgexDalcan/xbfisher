@@ -122,7 +122,7 @@ pub fn ping_station(station: &Station, ping_count: u16) -> Vec<f32>{
     let mut fail_counter: u16 = 0;
     let mut latency: Vec<f32> = Vec::new();
     let ttl: u32 = 64;
-    let interval: u64 = 1;
+    let interval: f64 = 0.5;
     while success_counter + fail_counter < ping_count {
         match ping(
             addr,
@@ -146,7 +146,7 @@ pub fn ping_station(station: &Station, ping_count: u16) -> Vec<f32>{
                 continue;
             },
         }
-        std::thread::sleep(Duration::from_secs(interval));
+        std::thread::sleep(Duration::from_secs_f64(interval));
     }
     let viter = latency.iter();
     let avg = math::vec_mean(&latency);
@@ -163,7 +163,7 @@ pub fn ping_station_silent(station: &Station, ping_count: u16) -> Vec<f32>{
     let mut fail_counter: u16 = 0;
     let mut latency = Vec::new();
     let ttl: u32 = 64;
-    let interval: u64 = 1;
+    let interval: f64 = 0.5;
     while success_counter + fail_counter < ping_count {
         match ping(
             addr,
@@ -182,7 +182,7 @@ pub fn ping_station_silent(station: &Station, ping_count: u16) -> Vec<f32>{
                 continue;
             },
         }
-        std::thread::sleep(Duration::from_secs(interval));
+        std::thread::sleep(Duration::from_secs_f64(interval));
     }
     latency
 }

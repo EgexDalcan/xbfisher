@@ -2,9 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::{Connection, Error, Result};
 
-use crate::station::StationData;
+use crate::{parsing::ConfigData, station::StationData};
 
-pub fn start_database() -> Result<()> {
+pub fn start_database(config_data: &ConfigData) -> Result<()> {
     let db = Arc::new(Mutex::new(Connection::open("station_data.db3").unwrap()));
 
     let conn = db.lock().unwrap();
@@ -12,16 +12,17 @@ pub fn start_database() -> Result<()> {
     conn.execute(
         "create table if not exists stations (
              station_number integer primary key,
-             station_name text not null unique,
-             station_ip_address text not null unique
+             station_name text not null,
+             station_ip_address text not null
          )",
         (),
     )?;
 
+    println!("ex1");
+
     conn.execute(
         "create table if not exists station_data (
-             station_number integer not null,
-             station_name text not null,
+             station integer not null references stations(station_number),
              date text not null,
              uptime text not null,
              network_data text not null,
@@ -37,9 +38,14 @@ pub fn start_database() -> Result<()> {
          )",
         (),
     )?;
-    
-    // TODO: Remove, exists for testing reasons!
-    let _ = add_station_to_db(&"1".to_string(), &"TEST".to_string(), &"127.0.0.1".to_string());
+ 
+    for station in config_data.get_svec() {
+        match add_station_to_db(&station.get_station_no().to_string(), &station.name, &station.ip_address) {
+            Ok(_) => (),
+            // We panic here because it is the start of the program and the config file is obviously misconfigured.
+            Err(error) => panic!("The config file is misconfigured. Error: {}", error),
+        }
+    }
 
     Ok(())
 }
@@ -63,8 +69,8 @@ pub fn push_data_to_db(stat_data: &StationData) -> Result<()> {
     let conn = db.lock().unwrap();
 
     conn.execute(
-        "INSERT INTO station_data (station_number, station_name, date, uptime, network_data, latency, socket_stats, memory, memory_details, swap, swap_details, cpu_load, load_avg, cpu_temp)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+        "INSERT INTO station_data (station_number, date, uptime, network_data, latency, socket_stats, memory, memory_details, swap, swap_details, cpu_load, load_avg, cpu_temp)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)",
         stat_data.output_data(),
     )?;
 

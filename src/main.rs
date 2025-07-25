@@ -1,9 +1,14 @@
-use xbfisher::{commands::start_data_from_db_list, database::{add_station_to_db, start_database}, parsing::parse_diag_data, req_comms, station::Station, CommandKind};
+use xbfisher::{commands::start_data_from_db, database::start_database, filecontrol::read_config, parsing::parse_config_file};
 
 fn main() {
-    let _ = start_database();
-    add_station_to_db(&"2".to_string(), &"boromir".to_string(), &"10.8.0.110".to_string());
-    start_data_from_db_list(&0.to_string());
+    let config_data = parse_config_file(read_config());
+
+    match start_database(&config_data) {
+        Ok(_) => (),
+        // We panic here because if we cannot start the database everything should break.
+        Err(error) => panic!("Failed to start the database. Error: {}", error)
+    }
+    start_data_from_db();
 
     /* let args: Vec<String> = env::args().collect();
     if args.len() < 2 || &args[1] == &"-h".to_owned(){

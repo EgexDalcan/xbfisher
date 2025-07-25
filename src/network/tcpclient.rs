@@ -11,12 +11,14 @@ const PORT: &str = "2537";
 pub enum CommandKind {
     ReqDiag,
     CheckAlive,
-    ReqData,   
+    ReqData,
 }
 
-// TODO: Error handling for when TcpStream::connect fails.
 pub fn req_comms(station: &Station, command: CommandKind) -> Result<Vec<String>, Error> {
-    let mut stream = TcpStream::connect(format!("{}:{}", station.get_ip_address(), PORT)).unwrap();
+    let mut stream = match TcpStream::connect(format!("{}:{}", station.get_ip_address(), PORT)) {
+        Ok(stream) => stream,
+        Err(error) => return Err(Error::TCPStreamError { error: error }),
+    };
     match command {
         // Requests Diagnosis Data from the station.
         CommandKind::ReqDiag => {
@@ -33,7 +35,6 @@ pub fn req_comms(station: &Station, command: CommandKind) -> Result<Vec<String>,
                 Ok(diagdata) => {
                     // Some initial parsing...
                     let mut diagdata = diagdata.trim().trim_matches(char::from(0)).trim().to_string();
-                    println!("NEW DATA:\n{:?}", diagdata);
                     if !diagdata.starts_with("StartDiag") || !diagdata.ends_with("ENDAll") {
                         return Err(Error::InvalidTCPReturn)
                     }
