@@ -1,6 +1,8 @@
 use std::time::Duration;
+use chrono::{DateTime, Local};
 use rand::random;
 
+use crate::database::db_update_last_alive;
 use crate::parsing::parse_diag_data;
 use crate::{math, req_comms, CommandKind, Error};
 use crate::network::ping;
@@ -10,11 +12,12 @@ pub struct Station {
     pub name: String,
     pub diag_data: StationData,
     pub ip_address: String,
+    pub last_alive: DateTime<Local>,
 }
 
 impl Station{
     fn new_no(st_no: u8, st_name: &String, ipaddr: &String) -> Self {
-        Self { station_no: st_no, name: st_name.to_string(), diag_data: StationData::new_empty(), ip_address: ipaddr.to_string()}
+        Self { station_no: st_no, name: st_name.to_string(), diag_data: StationData::new_empty(), ip_address: ipaddr.to_string(), last_alive: Local::now()}
     }
 
     pub fn connect_station(stat_no: u8) -> Result<Self, Error> {
@@ -97,11 +100,11 @@ impl Station{
     }
 
     /// Gathers data from the station as StationData, pushes the data into the database and updates the struct.
-    pub fn gather_diag_data_set(&mut self) -> &StationData{
+    pub fn gather_diag_data_set(&mut self, port: &str) -> &StationData{
         // Get the station data and assign its number, name, and latency.
         let latency = math::n_decimals(math::vec_mean(&self.ping_this_station_silent(5)), 4).to_string();
 
-        let station_data = match req_comms(self, CommandKind::ReqDiag) {
+        let station_data = match req_comms(&self, CommandKind::ReqDiag, port) {
             Ok(data) => parse_diag_data(&data),
             Err(err) => {eprintln!("Error while requesting diagnostics data: {err}"); Ok(StationData::new_error())},
         };
@@ -120,8 +123,14 @@ impl Station{
         self.diag_data = sdata;
         &self.diag_data
     }
-}
 
+    pub fn update_station_last_alive(&mut self, port: &str) {
+        match req_comms(&self, CommandKind::CheckAlive, port) {
+            Ok(_) => { self.last_alive = Local::now(); db_update_last_alive(&self).unwrap_or_else(|error| { eprintln!("Error while updating the last_alive column of station number: {}. Error: {error}", self.get_station_no()) }); },
+            Err(error) => { eprintln!("Error while requesting life status from station {}. Error: {error}", self.station_no) }
+        }
+    }
+}
 pub struct StationData {
     no: String,
     date: String,
@@ -199,8 +208,9 @@ impl StationData {
         }
     }
 
-    pub fn output_data(&self) -> (String, String, String, String, String, String, String, String, String, String, String, String, String) {
-        (self.no.clone(), self.date.clone(), self.uptime.clone(), self.network_data.clone(),
+    pub fn output_data(&self) -> (String, String, String, String, String, String, String, String, String, String, String, String, String, String) {
+        let date = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        (self.no.clone(), self.date.clone(), date, self.uptime.clone(), self.network_data.clone(),
         self.latency.clone(), self.socket_stats.clone(), self.memory.clone(), self.memory_details.clone(),
         self.swap.clone(), self.swap_details.clone(), self.cpu_load.clone(), self.load_avg.clone(), self.cpu_temp.clone())
     }

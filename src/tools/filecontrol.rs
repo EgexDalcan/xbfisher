@@ -19,15 +19,19 @@ pub fn read_config() -> io::Result<io::Lines<io::BufReader<File>>> {
             });
             let info: String = "# To comment on this file, use a '#' at the start of the line.\n\
                                 # The '#' in the middle of a line is not accepted as a comment!\n\
-                                # These configurations are dynamic. They will take effect without restarting.\n\
+                                # These configurations are dynamic. They will take effect without restarting, in a maximum of 30 seconds.\n#\n\
                                 # Initial Stations List:\n\
                                 # To configure the initial station list, use the following pattern:\n\
-                                # <StationNo> -<UserName> -<StationIP>\n\
+                                # station=<StationNo> -<UserName> -<StationIP>\n\
                                 # Example:\n\
-                                # 1 -central -10.8.0.101\n\n\n\
-                                # Configurations:\n\
-                                # Interval between diagnostic data points in seconds.\n\
-                                diag_data_interval=60\n".to_string();
+                                # station=1 -central -10.8.0.101\n\n\
+                                # These configurations are static. You will need to restart the program after changing.\n\
+                                # Port for the server. Uses 2537 as default:\n\
+                                server_port=2537\n\n\
+                                # Interval between diagnostic data points in seconds:\n\
+                                diag_data_interval=60\n\n\
+                                # Interval between life checks in seconds:\n\
+                                check_alive_interval=10\n".to_string();
             fs::write(&config_path, info).unwrap_or_else(|error| {panic!("Problem writing the use information to the config file. Error: {error}")});
             panic!("Couldn't find 'config' file. 'config' file created in /etc/xbfisher/config. Please configure before running again.");
         } else {
