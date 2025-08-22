@@ -36,6 +36,7 @@ pub fn start_database(config_data: &ConfigData) -> Result<()> {
              cpu_load text not null,
              load_avg text not null,
              cpu_temp text not null,
+             disk_use text not null,
              FOREIGN KEY(station) REFERENCES stations(station_number)
          )",
         (),
@@ -57,6 +58,7 @@ pub fn start_database(config_data: &ConfigData) -> Result<()> {
              cpu_load text not null,
              load_avg text not null,
              cpu_temp text not null,
+             disk_use text not null,
              FOREIGN KEY(station) REFERENCES stations(station_number)
          )", 
         ()
@@ -91,8 +93,8 @@ pub fn push_data_to_db(stat_data: &StationData) -> Result<()> {
     let conn = db.lock().unwrap();
 
     conn.execute(
-        "INSERT INTO station_data (station, unix_epoch, date, uptime, network_data, latency, socket_stats, memory, memory_details, swap, swap_details, cpu_load, load_avg, cpu_temp)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+        "INSERT INTO station_data (station, unix_epoch, date, uptime, network_data, latency, socket_stats, memory, memory_details, swap, swap_details, cpu_load, load_avg, cpu_temp, disk_use)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
         stat_data.output_data(),
     )?;
     Ok(())
@@ -104,8 +106,8 @@ pub fn update_realtime_data(stat_data: &StationData) -> Result<()> {
     let conn = db.lock().unwrap();
 
     conn.execute(
-        "INSERT OR REPLACE INTO station_realtime_data (station, unix_epoch, date, uptime, network_data, latency, socket_stats, memory, memory_details, swap, swap_details, cpu_load, load_avg, cpu_temp)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)",
+        "INSERT OR REPLACE INTO station_realtime_data (station, unix_epoch, date, uptime, network_data, latency, socket_stats, memory, memory_details, swap, swap_details, cpu_load, load_avg, cpu_temp, disk_use)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
         stat_data.output_data(),
     )?;
     Ok(())

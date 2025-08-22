@@ -1,7 +1,7 @@
 use std::thread;
 use std::time::Duration;
 
-use crate::database::{db_update_stations_list, get_stations, push_data_to_db, update_realtime_data};
+use crate::database::{db_update_last_alive, db_update_stations_list, get_stations, push_data_to_db, update_realtime_data};
 use crate::filecontrol::read_config;
 use crate::parsing::{parse_config_file, ConfigData};
 use crate::station::Station;
@@ -54,7 +54,7 @@ pub fn update_last_alives(config_data: &ConfigData) {
     let port = config_data.get_port();
     let interval = Duration::from_secs(config_data.get_alive_interval());
     loop {
-        let mut svec: Vec<Station> = vec![];
+        let mut svec: Vec<Station> = Vec::new();
         match get_stations() {
             Ok(lines) => {
                 // Consumes the iterator, returns a String
@@ -68,7 +68,10 @@ pub fn update_last_alives(config_data: &ConfigData) {
                     };
                 }
                 for i in &mut svec {
-                    i.update_station_last_alive(port);
+                    match i.update_station_last_alive(port) {
+                        Ok(station) => { db_update_last_alive(station).unwrap_or_else(|error| { eprintln!("Error while updating the last_alive column of station number: {}. Error: {error}", station.get_station_no()) }); },
+                        Err(_) => (),
+                    }
                 }
             }
             Err( error) => eprintln!("Error while updating station last alive date: {error}")

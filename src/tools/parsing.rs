@@ -30,8 +30,8 @@ impl ConfigData {
 }
 
 pub fn parse_diag_data(data: &Vec<String>) -> Result<StationData, Error> {
-    if data.len() != 9 {
-        eprintln!("Length of data is not 9. Length of data: {}", data.len());
+    if data.len() != 10 {
+        eprintln!("Length of data is not 10. Length of data: {}", data.len());
         return Err(Error::ParsingError);
     }
     let mut data_list: Vec<String> = Vec::new();

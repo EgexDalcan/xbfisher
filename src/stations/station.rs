@@ -2,7 +2,6 @@ use std::time::Duration;
 use chrono::{DateTime, Local};
 use rand::random;
 
-use crate::database::db_update_last_alive;
 use crate::parsing::parse_diag_data;
 use crate::{math, req_comms, CommandKind, Error};
 use crate::network::ping;
@@ -124,10 +123,10 @@ impl Station{
         &self.diag_data
     }
 
-    pub fn update_station_last_alive(&mut self, port: &str) {
+    pub fn update_station_last_alive(&mut self, port: &str) -> Result<&Station, Error> {
         match req_comms(&self, CommandKind::CheckAlive, port) {
-            Ok(_) => { self.last_alive = Local::now(); db_update_last_alive(&self).unwrap_or_else(|error| { eprintln!("Error while updating the last_alive column of station number: {}. Error: {error}", self.get_station_no()) }); },
-            Err(error) => { eprintln!("Error while requesting life status from station {}. Error: {error}", self.station_no) }
+            Ok(_) => { self.last_alive = Local::now(); return Ok(self)},
+            Err(error) => { eprintln!("Error while requesting life status from station {}. Error: {error}", self.station_no); return Err(Error::InvalidTCPCommunication)}
         }
     }
 }
@@ -145,10 +144,11 @@ pub struct StationData {
     cpu_load: String,
     load_avg: String,
     cpu_temp: String,
+    disk_use: String,
 }
 
 impl StationData {
-    /// The &Vec<String> inputted here must be of length 9.
+    /// The &Vec<String> inputted here must be of length 10.
     pub fn new(data_list: &Vec<String>) -> StationData {
         if data_list.len() != 9 {
             Self::new_error();
@@ -169,6 +169,7 @@ impl StationData {
             cpu_load: data_list[6].clone(),
             load_avg: data_list[7].clone(),
             cpu_temp: data_list[8].clone(),
+            disk_use: data_list[9].clone(),
         }
     }
 
@@ -187,6 +188,7 @@ impl StationData {
             cpu_load: "Error".to_string(),
             load_avg: "Error".to_string(),
             cpu_temp: "Error".to_string(),
+            disk_use: "Error".to_string(),
         }
     }
 
@@ -205,13 +207,14 @@ impl StationData {
             cpu_load: "Empty".to_string(),
             load_avg: "Empty".to_string(),
             cpu_temp: "Empty".to_string(),
+            disk_use: "Empty".to_string(),
         }
     }
 
-    pub fn output_data(&self) -> (String, String, String, String, String, String, String, String, String, String, String, String, String, String) {
+    pub fn output_data(&self) -> (String, String, String, String, String, String, String, String, String, String, String, String, String, String, String) {
         let date = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         (self.no.clone(), self.date.clone(), date, self.uptime.clone(), self.network_data.clone(),
         self.latency.clone(), self.socket_stats.clone(), self.memory.clone(), self.memory_details.clone(),
-        self.swap.clone(), self.swap_details.clone(), self.cpu_load.clone(), self.load_avg.clone(), self.cpu_temp.clone())
+        self.swap.clone(), self.swap_details.clone(), self.cpu_load.clone(), self.load_avg.clone(), self.cpu_temp.clone(), self.disk_use.clone())
     }
 }
