@@ -1,0 +1,71 @@
+use std::io::prelude::*;
+use std::net::TcpStream;
+use std::str::FromStr;
+use std::vec;
+
+use crate::Error;
+use crate::station::Station;
+
+pub enum CommandKind {
+    ReqDiag,
+    CheckAlive,
+    ReqData,
+}
+
+pub fn req_comms(station: &Station, command: CommandKind, port: &str) -> Result<Vec<String>, Error> {
+    let mut stream = match TcpStream::connect(format!("{}:{}", station.get_ip_address(), port)) {
+        Ok(stream) => stream,
+        Err(error) => return Err(Error::TCPStreamError { error: error }),
+    };
+    match command {
+        // Requests Diagnosis Data from the station.
+        CommandKind::ReqDiag => {
+            // Sends the command along:
+            let msg = String::from_str("REQDIAG").expect("Hardcoded.");
+            let cmd: &[u8] = msg.as_bytes();
+            let _ = stream.write(cmd);
+
+            // Reads the response from the station:
+            let response: &mut Vec<u8> = &mut Vec::new();
+            let _ = stream.read_to_end(response);
+            let response = String::from_utf8(response.to_vec());
+            match response {
+                Ok(diagdata) => {
+                    // Some initial parsing...
+                    let mut diagdata = diagdata.trim_matches(char::from(0)).trim().to_string();
+                    if !diagdata.starts_with("StartDiag") || !diagdata.ends_with("ENDAll") {
+                        return Err(Error::InvalidTCPReturn)
+                    }
+                    diagdata = diagdata.replace("StartDiag", "");
+                    diagdata = diagdata.replace("ENDAll", "");
+                    return Ok(diagdata.trim().split("End").map(|x| x.trim().to_string()).collect::<Vec<String>>());
+                },
+                Err(_) => return Err(Error::InvalidTCPCommunication),
+            }
+        },
+
+        // Request a reply back from the station.
+        CommandKind::CheckAlive => {
+            let msg = String::from_str("CHECKAL").expect("Hardcoded.");
+            let cmd: &[u8] = msg.as_bytes();
+            let _ = stream.write(cmd);
+
+            let response: &mut Vec<u8> = &mut Vec::new();
+            let _ = stream.read_to_end(response);
+            let response = String::from_utf8(response.to_vec());
+            match response {
+                Ok(resp) => {
+                    let response = resp.trim_matches(char::from(0)).trim().to_string();
+                    if response.starts_with("ALIVE") && response.ends_with("ALIVE") {
+                        return Ok(vec![response])
+                    }
+                    return Err(Error::InvalidTCPReturn);
+                },
+                Err(_) => return Err(Error::InvalidTCPCommunication),
+            }
+        },
+
+        // Requests T2-T3 Data from the station.
+        CommandKind::ReqData => todo!()
+    };
+}

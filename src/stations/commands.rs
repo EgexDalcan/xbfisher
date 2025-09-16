@@ -1,76 +1,83 @@
+use std::thread;
 use std::time::Duration;
 
-use regex::Regex;
-
+use crate::database::{db_update_last_alive, db_update_stations_list, get_stations, push_data_to_db, update_realtime_data};
+use crate::filecontrol::read_config;
+use crate::parsing::{parse_config_file, ConfigData};
 use crate::station::Station;
-use crate::station;
-use crate::tools::filecontrol;
 
-pub fn parse_config(args: &[String]) -> (&str, &str, &str){
-    let command = &args[1];
-    let parameter1 = &args[2];
-    let parameter2 = &args[3];
-    (command, parameter1, parameter2)
-}
-
-pub fn start_data_from_no(stat_no: u8){
-    let station = Station::connect_station(stat_no);
-    let datavec = vec![station.gather_data_set()];
-    filecontrol::write_data(datavec);
-}
-
-pub fn start_data_from_ip(usrname: &String, ipaddr: &String, interval: &String){
-    let station = Station::connect_station_by_ip(99, usrname, ipaddr);
-    loop{
-        let datavec = vec![station.gather_data_set()];
-        filecontrol::write_data(datavec);
-        std::thread::sleep(Duration::from_secs(interval.parse().unwrap()));
-    }
-}
-
-/// Parses the "./hosts.txt" file and writes the gathered data from the stations named in "./hosts.txt" into a .csv file named after the date.
-/// If no "./hosts.txt" exists, creates the file and panics.
-/// interval: u64: designates the interval between different data retrievals in seconds.
-pub fn start_data_from_list(interval: &String){
-    let mut svec: Vec<Station> = vec![];
-    if let Ok(lines) = filecontrol::read_lines("./hosts".into()) {
-        // Consumes the iterator, returns a String
-        for line in lines.flatten() {
-            let com = Regex::new(r"^[#]").unwrap();
-            if !line.is_empty() && !com.is_match(&line){
-                let linecut: Vec<&str> = line.split(" -").collect();
-                svec.push(Station::connect_station_by_ip(linecut[0].parse().unwrap(), &linecut[1].into(), &linecut[2].into()));
-            };
-        }
-        loop {
-            let mut datavec: Vec<station::DataRow> = vec![];
-            for i in &svec{
-                datavec.push(i.gather_data_set());
+/// Gets the list of stations from the database and puts them in a Vec to start data acquisition.
+pub fn start_diag_data_from_db(config_data: &ConfigData) {
+    let port = config_data.get_port();
+    let interval = Duration::from_secs(config_data.get_diag_interval());
+    loop {
+        let mut svec: Vec<Station> = vec![];
+        match get_stations(config_data.get_db_loc()) {
+            Ok(lines) => {
+                // Consumes the iterator, returns a String
+                for line in lines.iter() {
+                    if !line.is_empty() {
+                        let linecut: Vec<&str> = line.split(" -").collect();
+                        match Station::connect_station_by_ip(linecut[0].parse().expect("The database takes Integer for this column"), &linecut[1].into(), &linecut[2].into()) {
+                            Ok(station) => svec.push(station),
+                            Err(error) => eprintln!("Error while connecting to station: {error}"),
+                        }
+                    };
+                }
+                for i in &mut svec {
+                    let data = i.gather_diag_data_set(port);
+                    match push_data_to_db(data, config_data.get_db_loc()) {
+                        Ok(_) => (),
+                        Err(error) => eprintln!("Error while inserting data to the database: {error}"),
+                    };
+                    match update_realtime_data(data, config_data.get_db_loc()) {
+                        Ok(_) => (),
+                        Err(error) => eprintln!("Error while inserting data to the database: {error}"),
+                    };
+                }
             }
-            filecontrol::write_data(datavec);
-            std::thread::sleep(Duration::from_secs(interval.parse().unwrap()));
+            Err( error) => eprintln!("Error while starting diagnostics data acquisition: {error}")
         }
+        thread::sleep(interval);
     }
 }
 
-pub fn get_current_data_from_no(stat_no: u8){
-    let station = Station::connect_station(stat_no);
-    let data_row = station.gather_data_set();
-    println!("{}", data_row);
+/// Gets a list of the stations from the database and puts them in a Vec to update their last_alive columns in the database.
+pub fn update_last_alives(config_data: &ConfigData) {
+    let port = config_data.get_port();
+    let interval = Duration::from_secs(config_data.get_alive_interval());
+    loop {
+        let mut svec: Vec<Station> = Vec::new();
+        match get_stations(config_data.get_db_loc()) {
+            Ok(lines) => {
+                // Consumes the iterator, returns a String
+                for line in lines.iter() {
+                    if !line.is_empty() {
+                        let linecut: Vec<&str> = line.split(" -").collect();
+                        match Station::connect_station_by_ip(linecut[0].parse().expect("The database takes Integer for this column"), &linecut[1].into(), &linecut[2].into()) {
+                            Ok(station) => svec.push(station),
+                            Err(error) => eprintln!("Error while connecting to station: {error}"),
+                        }
+                    };
+                }
+                for i in &mut svec {
+                    match i.update_station_last_alive(port) {
+                        Ok(station) => { db_update_last_alive(station, config_data.get_db_loc()).unwrap_or_else(|error| { eprintln!("Error while updating the last_alive column of station number: {}. Error: {error}", station.get_station_no()) }); },
+                        Err(_) => (),
+                    }
+                }
+            }
+            Err( error) => eprintln!("Error while updating station last alive date: {error}")
+        }
+        thread::sleep(interval);
+    }
 }
 
-pub fn get_current_data_from_ip(usrname: &String, ipaddr: &String){
-    let station = Station::connect_station_by_ip(99, usrname, ipaddr);
-    let data_row = station.gather_data_set();
-    println!("{}", data_row);
-}
+pub fn update_program(interval: Duration) {
+    loop {
+        let config_data = parse_config_file(read_config());
 
-pub fn ping_station(stat_no: u8, count: u16){
-    let station = Station::connect_station(stat_no);
-    station.ping_this_station(count);
-}
-
-pub fn ping_station_from_ip(usrname: &String, ipaddr: &String, count: u16){
-    let station = Station::connect_station_by_ip(99, usrname, ipaddr);
-    station.ping_this_station(count);
+        db_update_stations_list(&config_data);
+        thread::sleep(interval);
+    }
 }

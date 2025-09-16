@@ -1,60 +1,44 @@
 use std::{fs::{self, File, OpenOptions}, io::{self, BufRead, ErrorKind}};
 
-use chrono::{Datelike, Local};
-use csv::WriterBuilder;
-
-use crate::stations::station;
-
-/// Reads the lines from a given file (used specifically for the config file (./hosts) so writes config info if the file does not exist).
-pub fn read_lines(filename: String) -> io::Result<io::Lines<io::BufReader<File>>> {
-    let file = File::open(&filename).unwrap_or_else(|error|{
-        if error.kind() == ErrorKind::NotFound{
+/// Reads the lines from the config file (used specifically for the config file (/etc/xbfisher/config) so writes config info if the file does not exist).
+pub fn read_config() -> io::Result<io::Lines<io::BufReader<File>>> {
+    let config_path = "/etc/xbfisher/config".to_string();
+    fs::create_dir("/etc/xbfisher").unwrap_or_else(| error | {
+        if error.kind() != ErrorKind::AlreadyExists {
+            panic!("Could not create a directory for the config file. Please create the directory /etc/xbfisher. Error: {error}");
+        }
+    });
+    let file = File::open(&config_path).unwrap_or_else(|error|{
+        if error.kind() == ErrorKind::NotFound {
             let _ = OpenOptions::new()
             .append(true)
             .create(true)
-            .open(&filename)
+            .open(&config_path)
             .unwrap_or_else(|error|{
-                panic!("Problem creating the hosts file: {filename}. Error: {error:?}");
+                panic!("Config file not found. Problem creating the config file: {}. Error: {error:?}", &config_path);
             });
-            let info: String = "# To configure the station list use the following pattern:\n# StationNo -UserName -StationIP\n# Example:\n# 1 -frodo_central -10.8.0.101\n".into();
-            fs::write(filename, info).unwrap_or_else(|error| {panic!("Problem writing to the hosts file. Error: {error}")});
-            panic!("Couldn't find 'hosts' config file. 'hosts' config file created. Please configure before running again.");
+            let info: String = "# To comment on this file, use a '#' at the start of the line.\n\
+                                # The '#' in the middle of a line is not accepted as a comment!\n\
+                                # These configurations are dynamic. They will take effect without restarting, in a maximum of 30 seconds.\n#\n\
+                                # Initial Stations List:\n\
+                                # To configure the initial station list, use the following pattern:\n\
+                                # station=<StationNo> -<UserName> -<StationIP>\n\
+                                # Example:\n\
+                                # station=1 -central -10.8.0.101\n\n\
+                                # These configurations are static. You will need to restart the program after changing.\n\
+                                # Location of the database:\n\
+                                database_location=/etc/xbfisher/station_database.db3\n\n\
+                                # Port for the server. Uses 2537 as default:\n\
+                                server_port=2537\n\n\
+                                # Interval between diagnostic data points in seconds:\n\
+                                diag_data_interval=60\n\n\
+                                # Interval between life checks in seconds:\n\
+                                check_alive_interval=10\n".to_string();
+            fs::write(&config_path, info).unwrap_or_else(|error| {panic!("Problem writing the use information to the config file. Error: {error}")});
+            panic!("Couldn't find 'config' file. 'config' file created in /etc/xbfisher/config. Please configure before running again.");
         } else {
-            panic!("Problem accessing the hosts file: {filename}. Error: {error:?}")
+            panic!("Problem accessing the config file: {}. Error: {error:?}", &config_path)
         }
     });
     Ok(io::BufReader::new(file).lines())
-}
-
-/// Parses DataRow vector elements of which gathered by gather_data_set() and then writes it on a .csv file.
-pub fn write_data(datavec: Vec<station::DataRow>){
-    let mut header: bool = false;
-        let date: chrono::DateTime<Local> = chrono::offset::Local::now();
-        fs::create_dir("./data").unwrap_or_else(|error| {if error.kind() == ErrorKind::AlreadyExists{} else {panic!("Error while creating data directory. Error: {error}")}});
-        let file_name = format!("data/station_list_date_{}.csv", (format!("{}_{}_{}", date.month(), date.day(), date.year())));
-        // Open file, if no file, create one.
-        let file = OpenOptions::new()
-            .write(true)
-            .append(true)
-            .open(&file_name)
-            .unwrap_or_else(| error | {
-                if error.kind() == ErrorKind::NotFound {
-                    header = true;
-                    OpenOptions::new()
-                        .write(true)
-                        .append(true)
-                        .create(true)
-                        .open(&file_name)
-                        .unwrap_or_else(| error | {
-                            panic!("Problem creating the file: {error:?}");
-                            })
-                    } else {
-                        panic!("Problem opening the file: {error:?}");
-                    }
-            });
-        // Write.
-        let mut wtr = WriterBuilder::new()
-            .has_headers(header)
-            .from_writer(file);
-        wtr.serialize(datavec).unwrap();
 }
