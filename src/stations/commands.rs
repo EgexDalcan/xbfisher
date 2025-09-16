@@ -6,20 +6,13 @@ use crate::filecontrol::read_config;
 use crate::parsing::{parse_config_file, ConfigData};
 use crate::station::Station;
 
-pub fn parse_config(args: &[String]) -> (&str, &str, &str){
-    let command = &args[1];
-    let parameter1 = &args[2];
-    let parameter2 = &args[3];
-    (command, parameter1, parameter2)
-}
-
 /// Gets the list of stations from the database and puts them in a Vec to start data acquisition.
 pub fn start_diag_data_from_db(config_data: &ConfigData) {
     let port = config_data.get_port();
     let interval = Duration::from_secs(config_data.get_diag_interval());
     loop {
         let mut svec: Vec<Station> = vec![];
-        match get_stations() {
+        match get_stations(config_data.get_db_loc()) {
             Ok(lines) => {
                 // Consumes the iterator, returns a String
                 for line in lines.iter() {
@@ -33,11 +26,11 @@ pub fn start_diag_data_from_db(config_data: &ConfigData) {
                 }
                 for i in &mut svec {
                     let data = i.gather_diag_data_set(port);
-                    match push_data_to_db(data) {
+                    match push_data_to_db(data, config_data.get_db_loc()) {
                         Ok(_) => (),
                         Err(error) => eprintln!("Error while inserting data to the database: {error}"),
                     };
-                    match update_realtime_data(data) {
+                    match update_realtime_data(data, config_data.get_db_loc()) {
                         Ok(_) => (),
                         Err(error) => eprintln!("Error while inserting data to the database: {error}"),
                     };
@@ -55,7 +48,7 @@ pub fn update_last_alives(config_data: &ConfigData) {
     let interval = Duration::from_secs(config_data.get_alive_interval());
     loop {
         let mut svec: Vec<Station> = Vec::new();
-        match get_stations() {
+        match get_stations(config_data.get_db_loc()) {
             Ok(lines) => {
                 // Consumes the iterator, returns a String
                 for line in lines.iter() {
@@ -69,7 +62,7 @@ pub fn update_last_alives(config_data: &ConfigData) {
                 }
                 for i in &mut svec {
                     match i.update_station_last_alive(port) {
-                        Ok(station) => { db_update_last_alive(station).unwrap_or_else(|error| { eprintln!("Error while updating the last_alive column of station number: {}. Error: {error}", station.get_station_no()) }); },
+                        Ok(station) => { db_update_last_alive(station, config_data.get_db_loc()).unwrap_or_else(|error| { eprintln!("Error while updating the last_alive column of station number: {}. Error: {error}", station.get_station_no()) }); },
                         Err(_) => (),
                     }
                 }
@@ -88,25 +81,3 @@ pub fn update_program(interval: Duration) {
         thread::sleep(interval);
     }
 }
-
-/* pub fn get_current_data_from_no(stat_no: u8){
-    let mut station = Station::connect_station(stat_no);
-    let data_row = station.gather_diag_data_set();
-    println!("{}", data_row);
-}
-
-pub fn get_current_data_from_ip(usrname: &String, ipaddr: &String){
-    let mut station = Station::connect_station_by_ip(99, usrname, ipaddr);
-    let data_row = station.gather_diag_data_set();
-    println!("{}", data_row);
-}
-
-pub fn ping_station(stat_no: u8, count: u16){
-    let station = Station::connect_station(stat_no);
-    station.ping_this_station(count);
-}
-
-pub fn ping_station_from_ip(st_name: &String, ipaddr: &String, count: u16){
-    let station = Station::connect_station_by_ip(99, st_name, ipaddr);
-    station.ping_this_station(count);
-} */

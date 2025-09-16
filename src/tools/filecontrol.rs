@@ -26,6 +26,8 @@ pub fn read_config() -> io::Result<io::Lines<io::BufReader<File>>> {
                                 # Example:\n\
                                 # station=1 -central -10.8.0.101\n\n\
                                 # These configurations are static. You will need to restart the program after changing.\n\
+                                # Location of the database:\n\
+                                database_location=/etc/xbfisher/station_database.db3\n\n\
                                 # Port for the server. Uses 2537 as default:\n\
                                 server_port=2537\n\n\
                                 # Interval between diagnostic data points in seconds:\n\

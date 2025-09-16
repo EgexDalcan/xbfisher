@@ -6,7 +6,7 @@ use rusqlite::{Connection, Error, Result};
 use crate::{parsing::ConfigData, station::{Station, StationData}};
 
 pub fn start_database(config_data: &ConfigData) -> Result<()> {
-    let db = Arc::new(Mutex::new(Connection::open("station_database.db3").unwrap()));
+    let db = Arc::new(Mutex::new(Connection::open(config_data.get_db_loc()).unwrap()));
 
     let conn = db.lock().unwrap();
 
@@ -65,7 +65,7 @@ pub fn start_database(config_data: &ConfigData) -> Result<()> {
     )?;
  
     for station in config_data.get_svec() {
-        match add_station_to_db(&station.get_station_no().to_string(), &station.name, &station.ip_address, &station.last_alive.to_string()) {
+        match add_station_to_db(&station.get_station_no().to_string(), &station.name, &station.ip_address, &station.last_alive.to_string(), config_data.get_db_loc()) {
             Ok(_) => (),
             // We panic here because it is the start of the program and the config file is obviously misconfigured.
             Err(error) => panic!("Failed to add the stations from the config file. Error: {}", error),
@@ -74,8 +74,8 @@ pub fn start_database(config_data: &ConfigData) -> Result<()> {
     Ok(())
 }
 
-pub fn add_station_to_db(stat_no: &String, stat_name: &String, stat_ip_addr: &String, stat_last_alive: &String) -> Result<()> {
-    let db = Arc::new(Mutex::new(Connection::open("station_database.db3").unwrap()));
+pub fn add_station_to_db(stat_no: &String, stat_name: &String, stat_ip_addr: &String, stat_last_alive: &String, db_loc: &str) -> Result<()> {
+    let db = Arc::new(Mutex::new(Connection::open(db_loc).unwrap()));
 
     let conn = db.lock().unwrap();
     
@@ -87,8 +87,8 @@ pub fn add_station_to_db(stat_no: &String, stat_name: &String, stat_ip_addr: &St
     Ok(())
 }
 
-pub fn push_data_to_db(stat_data: &StationData) -> Result<()> {
-    let db = Arc::new(Mutex::new(Connection::open("station_database.db3").unwrap()));
+pub fn push_data_to_db(stat_data: &StationData, db_loc: &str) -> Result<()> {
+    let db = Arc::new(Mutex::new(Connection::open(db_loc).unwrap()));
 
     let conn = db.lock().unwrap();
 
@@ -100,8 +100,8 @@ pub fn push_data_to_db(stat_data: &StationData) -> Result<()> {
     Ok(())
 }
 
-pub fn update_realtime_data(stat_data: &StationData) -> Result<()> {
-    let db = Arc::new(Mutex::new(Connection::open("station_database.db3").unwrap()));
+pub fn update_realtime_data(stat_data: &StationData, db_loc: &str) -> Result<()> {
+    let db = Arc::new(Mutex::new(Connection::open(db_loc).unwrap()));
 
     let conn = db.lock().unwrap();
 
@@ -113,8 +113,8 @@ pub fn update_realtime_data(stat_data: &StationData) -> Result<()> {
     Ok(())
 }
 
-pub fn db_update_last_alive(station: &Station) -> Result<()> {
-    let db = Arc::new(Mutex::new(Connection::open("station_database.db3").unwrap()));
+pub fn db_update_last_alive(station: &Station, db_loc: &str) -> Result<()> {
+    let db = Arc::new(Mutex::new(Connection::open(db_loc).unwrap()));
 
     let conn = db.lock().unwrap();
 
@@ -130,7 +130,7 @@ pub fn db_update_last_alive(station: &Station) -> Result<()> {
 
 pub fn db_update_stations_list(config_data: &ConfigData) {
     for station in config_data.get_svec() {
-        match add_station_to_db(&station.get_station_no().to_string(), &station.name, &station.ip_address, &station.last_alive.to_string()) {
+        match add_station_to_db(&station.get_station_no().to_string(), &station.name, &station.ip_address, &station.last_alive.to_string(), config_data.get_db_loc()) {
             Ok(_) => (),
             // We DO NOT panic here because it is not the start of the program anymore and we do not want to stop everything.
             Err(error) => eprintln!("Failed to add the stations from the config file. Error: {}", error),
@@ -138,8 +138,8 @@ pub fn db_update_stations_list(config_data: &ConfigData) {
     }
 }
 
-pub fn get_stations() -> Result<Vec<String>, Error> { 
-    let db = Arc::new(Mutex::new(Connection::open("station_database.db3").unwrap()));
+pub fn get_stations(db_loc: &str) -> Result<Vec<String>, Error> { 
+    let db = Arc::new(Mutex::new(Connection::open(db_loc).unwrap()));
 
     let conn = db.lock().unwrap();
 
