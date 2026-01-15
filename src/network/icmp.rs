@@ -61,7 +61,7 @@ pub struct EchoReply<'a> {
 
 impl<'a> EchoReply<'a> {
     pub fn decode<P: Proto>(buffer: &'a [u8]) -> Result<Self, Error> {
-        if buffer.as_ref().len() < HEADER_SIZE {
+        if buffer.len() < HEADER_SIZE {
             return Err(Error::InvalidSize);
         }
 

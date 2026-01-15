@@ -1,7 +1,6 @@
 use core::panic;
 use std::sync::{Arc, Mutex};
-
-use rusqlite::{Connection, Error, Result};
+use rusqlite::{Connection, Error, Result, params_from_iter};
 
 use crate::{parsing::ConfigData, station::{Station, StationData}};
 
@@ -23,19 +22,25 @@ pub fn start_database(config_data: &ConfigData) -> Result<()> {
     conn.execute(
         "CREATE TABLE if not exists station_data (
              station integer not null,
-             unix_epoch text not null,
              date text not null,
-             uptime text not null,
-             network_data text not null,
-             latency text not null,
+             station_time text not null,
+             uptime integer not null,
+             interface_data text not null,
+             latency real not null,
              socket_stats text not null,
-             memory text not null,
+             memory_used integer not null,
+             memory_max integer not null,
              memory_details text not null,
-             swap text not null,
+             swap_used integer not null,
+             swap_max integer not null,
              swap_details text not null,
-             cpu_load text not null,
-             load_avg text not null,
-             cpu_temp text not null,
+             cpu_load_user real not null,
+             cpu_load_system real not null,
+             cpu_load_idle real not null,
+             load_onemin_avg real not null,
+             load_fivemin_avg real not null,
+             load_fifteenmin_avg real not null,
+             cpu_temp real not null,
              disk_use text not null,
              FOREIGN KEY(station) REFERENCES stations(station_number)
          )",
@@ -44,20 +49,26 @@ pub fn start_database(config_data: &ConfigData) -> Result<()> {
 
     conn.execute(
         "CREATE TABLE if not exists station_realtime_data (
-             station integer primary key,
-             unix_epoch text not null,
+             station integer unique,
              date text not null,
-             uptime text not null,
-             network_data text not null,
-             latency text not null,
+             station_time text not null,
+             uptime integer not null,
+             interface_data text not null,
+             latency real not null,
              socket_stats text not null,
-             memory text not null,
+             memory_used integer not null,
+             memory_max integer not null,
              memory_details text not null,
-             swap text not null,
+             swap_used integer not null,
+             swap_max integer not null,
              swap_details text not null,
-             cpu_load text not null,
-             load_avg text not null,
-             cpu_temp text not null,
+             cpu_load_user real not null,
+             cpu_load_system real not null,
+             cpu_load_idle real not null,
+             load_onemin_avg real not null,
+             load_fivemin_avg real not null,
+             load_fifteenmin_avg real not null,
+             cpu_temp real not null,
              disk_use text not null,
              FOREIGN KEY(station) REFERENCES stations(station_number)
          )", 
@@ -92,10 +103,19 @@ pub fn push_data_to_db(stat_data: &StationData, db_loc: &str) -> Result<()> {
 
     let conn = db.lock().unwrap();
 
+    let params = stat_data.as_params();
+
     conn.execute(
-        "INSERT INTO station_data (station, unix_epoch, date, uptime, network_data, latency, socket_stats, memory, memory_details, swap, swap_details, cpu_load, load_avg, cpu_temp, disk_use)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
-        stat_data.output_data(),
+        "INSERT INTO station_data (
+            station, date, station_time, uptime, interface_data, latency,
+            socket_stats, memory_used, memory_max, memory_details,
+            swap_used, swap_max, swap_details,
+            cpu_load_user, cpu_load_system, cpu_load_idle,
+            load_onemin_avg, load_fivemin_avg, load_fifteenmin_avg,
+            cpu_temp, disk_use
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
+                ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+        params_from_iter(params),
     )?;
     Ok(())
 }
@@ -105,10 +125,19 @@ pub fn update_realtime_data(stat_data: &StationData, db_loc: &str) -> Result<()>
 
     let conn = db.lock().unwrap();
 
+    let params = stat_data.as_params();
+
     conn.execute(
-        "INSERT OR REPLACE INTO station_realtime_data (station, unix_epoch, date, uptime, network_data, latency, socket_stats, memory, memory_details, swap, swap_details, cpu_load, load_avg, cpu_temp, disk_use)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)",
-        stat_data.output_data(),
+        "INSERT OR REPLACE INTO station_realtime_data (
+            station, date, station_time, uptime, interface_data, latency,
+            socket_stats, memory_used, memory_max, memory_details,
+            swap_used, swap_max, swap_details,
+            cpu_load_user, cpu_load_system, cpu_load_idle,
+            load_onemin_avg, load_fivemin_avg, load_fifteenmin_avg,
+            cpu_temp, disk_use
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
+                ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
+        params_from_iter(params),
     )?;
     Ok(())
 }
