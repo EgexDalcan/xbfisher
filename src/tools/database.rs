@@ -74,6 +74,12 @@ pub fn start_database(config_data: &ConfigData) -> Result<()> {
          )", 
         ()
     )?;
+
+    conn.execute(
+        "CREATE INDEX if not exists idx_station_time
+        ON station_data(station, station_time);", 
+        ()
+    )?;
  
     for station in config_data.get_svec() {
         match add_station_to_db(&station.get_station_no().to_string(), &station.name, &station.ip_address, &station.last_alive.to_string(), config_data.get_db_loc()) {

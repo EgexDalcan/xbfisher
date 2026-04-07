@@ -219,8 +219,8 @@ impl StationData {
 
         vec![
             self.no.into(),
-            station_time.into(),
             push_time.into(),
+            station_time.into(),
             self.uptime.into(),
             self.interface_data.clone().into(),
             self.latency.into(),
