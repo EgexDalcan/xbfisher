@@ -1,8 +1,11 @@
+use core::f32;
 use std::time::Duration;
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, Utc};
 use rand::random;
+use rusqlite::types::Value;
 
-use crate::parsing::parse_diag_data;
+use crate::network::tcpclient::ReturnKind;
+use crate::parsing::DiagData;
 use crate::{math, req_comms, CommandKind, Error};
 use crate::network::ping;
 
@@ -15,48 +18,12 @@ pub struct Station {
 }
 
 impl Station{
-    fn new_no(st_no: u8, st_name: &String, ipaddr: &String) -> Self {
+    pub fn new(st_no: u8, st_name: &String, ipaddr: &String) -> Self {
         Self { station_no: st_no, name: st_name.to_string(), diag_data: StationData::new_empty(), ip_address: ipaddr.to_string(), last_alive: Local::now()}
     }
 
-    pub fn connect_station(stat_no: u8) -> Result<Self, Error> {
-        let station = match stat_no{
-            0 => Self::new_no(0, &"Frodo".to_string(), &"10.8.0.101".to_string()),
-            1 => Self::new_no(1, &"Aragorn".to_string(), &"10.10.1.2".to_string()),
-            2 => Self::new_no(2, &"Arwen".to_string(), &"10.10.2.2".to_string()),
-            3 => Self::new_no(3, &"Gimli".to_string(), &"10.10.3.2".to_string()),
-            4 => Self::new_no(4, &"Legolas".to_string(), &"10.10.4.2".to_string()),
-            5 => Self::new_no(5, &"Bilbo".to_string(), &"10.10.5.2".to_string()),
-            6 => Self::new_no(6, &"Galadriel".to_string(), &"10.10.6.2".to_string()),
-            _ => panic!("An invalid station no!")
-        };
-        let timeout = Duration::from_secs(2);
-        let connected = match ping::ping(
-            station.get_ip_address().parse().unwrap_or_else(|error|{
-                panic!("Error reading this address: \"{}\". check if its correct. Error: {error}", station.get_ip_address());
-            }),
-            Some(timeout),
-            Some(166),
-            Some(3),
-            Some(5),
-            Some(&random()),
-        ){
-            Ok(_a) => {
-                true
-            },
-            Err(error) => {
-                eprintln!("Problem during pinging Station {}. Station might be offline, or has a different address, otherwise you do not have connection. Error: {error}.", station.get_ip_address());
-                false
-            },
-        };
-        if connected {
-            return Ok(station);
-        }
-        Err(Error::InvalidIPAdress)
-    }
-
-    pub fn connect_station_by_ip(st_no: u8, st_name: &String, ipaddr: &String) -> Result<Self, Error> {
-        let station = Self::new_no(st_no, &st_name, ipaddr);
+    pub fn connect_station(st_no: u8, st_name: &String, ipaddr: &String) -> Result<Self, Error> {
+        let station = Self::new(st_no, &st_name, ipaddr);
         let timeout = Duration::from_secs(2);
         let connected = match ping::ping(
             ipaddr.parse().unwrap_or_else(|error|{
@@ -101,120 +68,177 @@ impl Station{
     /// Gathers data from the station as StationData, pushes the data into the database and updates the struct.
     pub fn gather_diag_data_set(&mut self, port: &str) -> &StationData{
         // Get the station data and assign its number, name, and latency.
-        let latency = math::n_decimals(math::vec_mean(&self.ping_this_station_silent(5)), 4).to_string();
+        let latency = math::n_decimals(math::vec_mean(&self.ping_this_station_silent(5)), 4);
 
-        let station_data = match req_comms(&self, CommandKind::ReqDiag, port) {
-            Ok(data) => parse_diag_data(&data),
-            Err(err) => {eprintln!("Error while requesting diagnostics data: {err}"); Ok(StationData::new_error())},
+        let mut station_data = match req_comms(&self, CommandKind::ReqDiag, port) {
+            ReturnKind::DiagRet(data) => StationData::new(data),
+            ReturnKind::Err(err) => { eprintln!("Error while requesting diagnostics data: {err}"); StationData::new_error() },
+            ReturnKind::AliveRet => { eprintln!("Received ReturnKind::AliveRet to the DiagData request. Should be impossible.") ; StationData::new_error() }
         };
 
-        let mut sdata = if let Err(error) = station_data {
-            eprintln!("Error while parsing diagnostics data: {error}");
-            StationData::new_error()
-        } else {
-            station_data.unwrap()
-        };
-
-        sdata.no = self.station_no.to_string();
-        sdata.latency = latency;
+        station_data.no = self.station_no as i32;
+        station_data.latency = latency;
 
         // Return StationData and update self.
-        self.diag_data = sdata;
+        self.diag_data = station_data;
         &self.diag_data
     }
 
     pub fn update_station_last_alive(&mut self, port: &str) -> Result<&Station, Error> {
         match req_comms(&self, CommandKind::CheckAlive, port) {
-            Ok(_) => { self.last_alive = Local::now(); return Ok(self)},
-            Err(error) => { eprintln!("Error while requesting life status from station {}. Error: {error}", self.station_no); return Err(Error::InvalidTCPCommunication)}
+            ReturnKind::AliveRet => { self.last_alive = Local::now(); return Ok(self) },
+            ReturnKind::Err(error) => { eprintln!("Error while requesting life status from station {}. Error: {error}", self.station_no); return Err(Error::InvalidTCPCommunication)},
+            ReturnKind::DiagRet(_) => { eprintln!("Received ReturnKind::DiagRet to the CheckAlive request. Should be impossible.") ; return Err(Error::InvalidTCPCommunication)}
         }
     }
 }
+
 pub struct StationData {
-    no: String,
-    date: String,
-    uptime: String,
-    network_data: String,
-    latency: String,
+    no: i32,
+    date: Duration,
+    uptime: i32,
+    interface_data: String,
+    latency: f32,
     socket_stats: String,
-    memory: String,
+    memory_used: i64,
+    memory_max: i64,
     memory_details: String,
-    swap: String,
+    swap_used: i64,
+    swap_max: i64,
     swap_details: String,
-    cpu_load: String,
-    load_avg: String,
-    cpu_temp: String,
+    cpu_load_user: f32,
+    cpu_load_system: f32,
+    cpu_load_idle: f32,
+    load_onem_avg: f32,
+    load_fivem_avg: f32,
+    load_fifteenm_avg: f32,
+    cpu_temp: f32,
     disk_use: String,
 }
 
 impl StationData {
-    /// The &Vec<String> inputted here must be of length 10.
-    pub fn new(data_list: &Vec<String>) -> StationData {
-        if data_list.len() != 9 {
-            Self::new_error();
+    pub fn new(data_list: DiagData) -> StationData {
+        let mut disk_data = String::new();
+        for disk in data_list.disks {
+            disk_data = disk_data + &disk.get_data() + "\n";
         }
-        let memory_details = data_list[4].clone().split("\nDetails: ").map(|x| x.to_string()).collect::<Vec<String>>();
-        let swap_details = data_list[5].clone().split("\nDetails: ").map(|x| x.to_string()).collect::<Vec<String>>();
+
         Self {
-            no: "-1".to_string(),
-            date: data_list[0].clone(),
-            uptime: data_list[1].clone(),
-            network_data: data_list[2].clone(),
-            latency: "-1".to_string(),
-            socket_stats: data_list[3].clone(),
-            memory: memory_details[0].clone(),
-            memory_details: memory_details[1].clone(),
-            swap: swap_details[0].clone(),
-            swap_details: swap_details[1].clone(),
-            cpu_load: data_list[6].clone(),
-            load_avg: data_list[7].clone(),
-            cpu_temp: data_list[8].clone(),
-            disk_use: data_list[9].clone(),
+            no: 0,
+            date: Duration::from_nanos(data_list.date as u64),
+            uptime: data_list.uptime as i32,
+            interface_data: data_list.networks,
+            latency: 0.0,
+            socket_stats: data_list.socket_stats,
+            memory_used: data_list.memory_used as i64,
+            memory_max: data_list.memory_max as i64,
+            memory_details: data_list.memory_details,
+            swap_used: data_list.swap_used as i64,
+            swap_max: data_list.swap_max as i64,
+            swap_details: data_list.swap_details,
+            cpu_load_user: data_list.cpu_user,
+            cpu_load_system: data_list.cpu_system,
+            cpu_load_idle: data_list.cpu_idle,
+            load_onem_avg: data_list.load_onem,
+            load_fivem_avg: data_list.load_fivem,
+            load_fifteenm_avg: data_list.load_fifteenm,
+            cpu_temp: data_list.cpu_temp,
+            disk_use: disk_data,
         }
     }
 
+    // Here, the choice of date 60 seconds after Unix Epoch is totaly arbitrary, and is a simple way
+    // to distinguish an error from an "uninitialized" or "empty" data. Similarly -1 and 0 for numbers.
+    // For cpu_temp, it is just the minimum of f32 for error and absolute zero in celcius for "empty".
     pub fn new_error() -> StationData {
         return Self {
-            no: "-1".to_string(),
-            date: "Error".to_string(),
-            uptime: "Error".to_string(),
-            network_data: "Error".to_string(),
-            latency: "Error".to_string(),
+            no: -1,
+            date: Duration::from_secs(60),
+            uptime: -1,
+            interface_data: "Error".to_string(),
+            latency: -1.0,
             socket_stats: "Error".to_string(),
-            memory: "Error".to_string(),
+            memory_used: -1,
+            memory_max: -1,
             memory_details: "Error".to_string(),
-            swap: "Error".to_string(),
+            swap_used: -1,
+            swap_max: -1,
             swap_details: "Error".to_string(),
-            cpu_load: "Error".to_string(),
-            load_avg: "Error".to_string(),
-            cpu_temp: "Error".to_string(),
+            cpu_load_user: -1.0,
+            cpu_load_system: -1.0,
+            cpu_load_idle: -1.0,
+            load_onem_avg: -1.0,
+            load_fivem_avg: -1.0,
+            load_fifteenm_avg: -1.0,
+            cpu_temp: f32::MIN,
             disk_use: "Error".to_string(),
         }
     }
-
+    
     pub fn new_empty() -> StationData {
         Self {
-            no: "-1".to_string(),
-            date: "Empty".to_string(),
-            uptime: "Empty".to_string(),
-            network_data: "Empty".to_string(),
-            latency: "Empty".to_string(),
+            no: 0,
+            date: Duration::from_secs(0),
+            uptime: 0,
+            interface_data: "Empty".to_string(),
+            latency: 0.0,
             socket_stats: "Empty".to_string(),
-            memory: "Empty".to_string(),
+            memory_used: 0,
+            memory_max: 0,
             memory_details: "Empty".to_string(),
-            swap: "Empty".to_string(),
+            swap_used: 0,
+            swap_max: 0,
             swap_details: "Empty".to_string(),
-            cpu_load: "Empty".to_string(),
-            load_avg: "Empty".to_string(),
-            cpu_temp: "Empty".to_string(),
+            cpu_load_user: 0.0,
+            cpu_load_system: 0.0,
+            cpu_load_idle: 0.0,
+            load_onem_avg: 0.0,
+            load_fivem_avg: 0.0,
+            load_fifteenm_avg: 0.0,
+            cpu_temp: -273.15,
             disk_use: "Empty".to_string(),
         }
     }
 
-    pub fn output_data(&self) -> (String, String, String, String, String, String, String, String, String, String, String, String, String, String, String) {
-        let date = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        (self.no.clone(), self.date.clone(), date, self.uptime.clone(), self.network_data.clone(),
-        self.latency.clone(), self.socket_stats.clone(), self.memory.clone(), self.memory_details.clone(),
-        self.swap.clone(), self.swap_details.clone(), self.cpu_load.clone(), self.load_avg.clone(), self.cpu_temp.clone(), self.disk_use.clone())
+    pub fn as_params(&self) -> Vec<Value> {
+        // Station-provided timestamp
+        let station_time = DateTime::<Utc>::from_timestamp(
+            self.date.as_secs() as i64,
+            self.date.subsec_nanos(),
+        )
+        .unwrap_or_else(|| DateTime::<Utc>::UNIX_EPOCH + chrono::Duration::seconds(60))
+        .with_timezone(&chrono::Local)
+        .format("%Y-%m-%d %H:%M:%S.%f %:z")  // <- format like last_alive
+        .to_string();
+
+        // Push time
+        let push_time = Utc::now()
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d %H:%M:%S.%f %:z")
+            .to_string();
+
+        vec![
+            self.no.into(),
+            push_time.into(),
+            station_time.into(),
+            self.uptime.into(),
+            self.interface_data.clone().into(),
+            self.latency.into(),
+            self.socket_stats.clone().into(),
+            self.memory_used.into(),
+            self.memory_max.into(),
+            self.memory_details.clone().into(),
+            self.swap_used.into(),
+            self.swap_max.into(),
+            self.swap_details.clone().into(),
+            self.cpu_load_user.into(),
+            self.cpu_load_system.into(),
+            self.cpu_load_idle.into(),
+            self.load_onem_avg.into(),
+            self.load_fivem_avg.into(),
+            self.load_fifteenm_avg.into(),
+            self.cpu_temp.into(),
+            self.disk_use.clone().into(),
+        ]
     }
 }
